@@ -40,7 +40,7 @@ async function connectAndLogin() {
     try {
         await provider.send('eth_requestAccounts', []);
         signer = await provider.getSigner();
-        const response = await fetch(`${BACKEND_ADDR}/login/nonce/${signer.address}`);
+        const response = await fetch(`${BACKEND_ADDR}/login/nonce/${signer.address}`, { method: "GET" });
         const res = await response.json();
         nonce = res.nonce;
         message = await createSiweMessage(signer.address, 'Sign in with Ethereum to the app.', nonce);
@@ -69,6 +69,8 @@ async function sendForVerification() {
 async function logout() {
     const localToken = localStorage.getItem("token");
     if (localToken) {
+        await provider.send('eth_requestAccounts', []);
+        signer = await provider.getSigner();
         const res = await fetch(`${BACKEND_ADDR}/login/signout/${signer.address}`, {
             method: "GET",
             headers: {
