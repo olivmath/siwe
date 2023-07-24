@@ -70,6 +70,7 @@ async function logout() {
     const localToken = localStorage.getItem("token");
     if (localToken) {
         const res = await fetch(`${BACKEND_ADDR}/login/signout/${signer.address}`, {
+            method: "GET",
             headers: {
                 "X-Authorization": localToken
             }
