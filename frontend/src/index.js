@@ -1,11 +1,21 @@
 import { BrowserProvider } from 'ethers';
 import { SiweMessage } from 'siwe';
 
+const BACKEND_ADDR = "http://localhost:8000";
 const domain = window.location.host;
 const origin = window.location.origin;
+
+let nonce = null;
+let message = null;
+let signature = null;
+let signer;
 const provider = new BrowserProvider(window.ethereum);
 
-const BACKEND_ADDR = "http://localhost:3000";
+const loginBtn = document.getElementById('loginBtn');
+const logoutBtn = document.getElementById('logoutBtn');
+
+loginBtn.onclick = connectAndLogin;
+logoutBtn.onclick = logout;
 
 async function createSiweMessage(address, statement, nonce) {
     let message = new SiweMessage({
@@ -18,51 +28,56 @@ async function createSiweMessage(address, statement, nonce) {
         nonce: nonce
     });
     message = message.prepareMessage();
-    console.log(message)
-    return message
+    return message;
 }
 
-function connectWallet() {
-    provider.send('eth_requestAccounts', [])
-        .then(async () => {
-            const signer = await provider.getSigner();
-            const res = await fetch(`${BACKEND_ADDR}/nonce/${signer.address}`);
-            nonce = await res.text()
-            console.warn(nonce)
-        })
-        .catch(() => console.log('user rejected request'));
-}
+async function connectAndLogin() {
+    const localToken = localStorage.getItem("token");
+    if (localToken) {
+        alert('Already logged in.');
+        return
+    }
+    try {
+        await provider.send('eth_requestAccounts', []);
+        signer = await provider.getSigner();
+        const response = await fetch(`${BACKEND_ADDR}/login/nonce/${signer.address}`);
+        const res = await response.json();
+        nonce = res.nonce;
+        message = await createSiweMessage(signer.address, 'Sign in with Ethereum to the app.', nonce);
+        signature = await signer.signMessage(message);
 
-let nonce = null;
-let message = null;
-let signature = null;
-
-async function signInWithEthereum() {
-    const signer = await provider.getSigner();
-    message = await createSiweMessage(
-        await signer.address,
-        'Sign in with Ethereum to the app.',
-        nonce
-    );
-    signature = await signer.signMessage(message);
-    console.log(signature)
+        await sendForVerification();
+    } catch (error) {
+        console.log('Error connecting or logging in:', error.message);
+    }
 }
 
 async function sendForVerification() {
-    const res = await fetch(`${BACKEND_ADDR}/verify`, {
+    const res = await fetch(`${BACKEND_ADDR}/login/signin`, {
         method: "POST",
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ message, signature }),
+        body: JSON.stringify({ message, signature })
     });
     const data = await res.json();
     alert(JSON.stringify(data));
+
+    localStorage.setItem("token", data.token);
 }
 
-const connectWalletBtn = document.getElementById('connectWalletBtn');
-const siweBtn = document.getElementById('siweBtn');
-const verifyBtn = document.getElementById('verifyBtn');
-connectWalletBtn.onclick = connectWallet;
-siweBtn.onclick = signInWithEthereum;
-verifyBtn.onclick = sendForVerification;
+async function logout() {
+    const localToken = localStorage.getItem("token");
+    if (localToken) {
+        const res = await fetch(`${BACKEND_ADDR}/login/signout/${signer.address}`, {
+            headers: {
+                "X-Authorization": localToken
+            }
+        });
+        localStorage.setItem("token", "");
+        const data = await res.json();
+        alert(JSON.stringify(data));
+    } else {
+        alert('No token found. Already logged out.');
+    }
+}
