@@ -2,7 +2,7 @@ import { BrowserProvider } from 'ethers';
 import { SiweMessage } from 'siwe';
 
 const BACKEND_ADDR = "http://localhost:8000";
-const domain = window.location.host;
+const domain = "localhost";
 const origin = window.location.origin;
 
 let nonce = null;
@@ -23,8 +23,8 @@ async function createSiweMessage(address, statement, nonce) {
         address,
         statement,
         uri: origin,
-        version: '1',
-        chainId: '1',
+        version: "1",
+        chainId: 31337,
         nonce: nonce
     });
     message = message.prepareMessage();
@@ -43,17 +43,17 @@ async function connectAndLogin() {
         const response = await fetch(`${BACKEND_ADDR}/login/nonce/${signer.address}`, { method: "GET" });
         const res = await response.json();
         nonce = res.nonce;
-        message = await createSiweMessage(signer.address, 'Sign in with Ethereum to the app.', nonce);
+        message = await createSiweMessage(signer.address, 'vc esta entrando', nonce);
         signature = await signer.signMessage(message);
 
         await sendForVerification();
     } catch (error) {
-        console.log('Error connecting or logging in:', error.message);
+        console.log('Error connecting or logging in:', error);
     }
 }
 
 async function sendForVerification() {
-    const res = await fetch(`${BACKEND_ADDR}/login/signin`, {
+    const res = await fetch(`${BACKEND_ADDR}/login/signin/${signer.address}`, {
         method: "POST",
         headers: {
             'Content-Type': 'application/json',
@@ -63,7 +63,9 @@ async function sendForVerification() {
     const data = await res.json();
     alert(JSON.stringify(data));
 
-    localStorage.setItem("token", data.token);
+    if (data.token !== undefined) {
+        localStorage.setItem("token", data.token);
+    }
 }
 
 async function logout() {
